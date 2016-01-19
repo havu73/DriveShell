@@ -52,6 +52,13 @@ def get_credentials():
 
 
 def initialize_dictionaries(service):
+    '''
+    Initialize id_name_parents and name_id dictionaries
+    These two dictionaries are data in memory that helps traveser the path
+    of any given file/directory. The in-memory data increases efficiency, especially
+    when a  lot of commands are processed,
+    requiring to find IDs of a lot of files/directores
+    '''
     root=service.files().get(fileId='root').execute()
     name_id[root['title']]=[root['id']]
     id_name_parents[root['id']]=idR(root['id'],"My Drive",None)
@@ -78,6 +85,14 @@ def initialize_dictionaries(service):
 
         
 def traverse_path(path, fileID):
+    '''
+    @param: path: path of a folder processed into list
+                    fileID: the file ID of a file
+    @return: True if the path represents a parent folder of the file
+    that has fileID
+    Ex: FileID of 'My Drive/Folder1/Folder2' is x
+    -->traverse_path(["My Drive","Folder1"],x) will return True
+    '''
     dirName=path[-1]
     
     if not dirName in name_id:
@@ -99,8 +114,12 @@ def traverse_path(path, fileID):
         return False
     
 def findID(path):
-    """Given a path(string),
-    find the id of the file referenced by the  path
+    """
+    @param: the path of the file. Note that this function right now can only process
+    complete path, i.e path that starts with 'My Drive'.
+    Ex: "My Drive/Folder1" or "My Drive/upload.png"
+    @return: fileID (string) of the file/directory referred to by path
+    
     """
     directories=path.split('/')
     fileName=directories[-1]
@@ -124,6 +143,11 @@ def findID(path):
     return None
 
 def list_file(service, fID):
+    '''
+    @param: service
+        fID: file Id of the directory to list files from
+    @return: None. Print out the name and ID of files and directories in the provided directory
+    '''
     children=service.files().list(q="'%s' in parents and trashed=false"%fID
                                      ,spaces="drive"
                                      ,fields="items(title,id)").execute()
@@ -131,14 +155,15 @@ def list_file(service, fID):
     for child in children['items']:
         print (child['title']+"   "+child['id'])
 
-def list_file_alt(service,fID):
-    children=service.children().list(folderId=fID,fields="items(id)").execute()
-    for child in children['items']:
-        print((child["id"]))
-        fileRef=id_name_parents[child['id']]
-        print (fileRef.getName()+"     "+fileRef.getID())
-        
+
 def list_file_recursive(service,fID,space):
+    '''
+    @param: service
+                    fID: ID of the directory to list files directly in the directory and files in subdirectories
+                    in the provided directory
+                    space: how many space characters to indent when printing files
+    @return: None. print out a recursive list of files inside the specified directory and its subdirectories
+    '''
     #print (fID)
     files=service.files().list(q="'%s' in parents and trashed=false"%fID,
                                   spaces="drive",
@@ -151,6 +176,13 @@ def list_file_recursive(service,fID,space):
             list_file_recursive(service,child['id'],space+5)
             
 def download(service,file_name,file_id,path):
+    '''
+    @param: service
+                    file_name: the local name of the downloaded file (ex: 'download_file.extension')
+                    file_id: the id of the file to download
+                    path: the local path of directory that contains the downloaded file
+    @return: None. Download the file from Google Drive to a local directory
+    '''
     request=service.files().get_media(fileId=file_id)
     download_dest=os.path.join(path,file_name)
     fo=open(download_dest,"a")
@@ -167,19 +199,39 @@ def download(service,file_name,file_id,path):
             print ("Download Complete")
             return
         
-def add_id_name_parents(fileID,name,parent):#parent should be just a single string
+def add_id_name_parents(fileID,name,parent):
+    '''
+    @param: fileID: file id of the file to be added into id_name_parents dictionary
+                    name: name of the file to be added
+                    parent: id (string) of the parent directory of the file in Google Drive
+    @return: add an entry to the id_name_parents dictionary.
+    This function is called when a file is uploaded into Google Drive
+    '''
     if not (fileID in id_name_parents):
         id_name_parents[fileID]=idR(fileID,name,[parent])
     else:
         id_name_parents[fileID].add_parent(parent)
 
-def add_name_id(fileID,name):#fildID is a string
+def add_name_id(fileID,name):
+    '''
+    @param: fileID: file id (string)of the file to be added into name_id dictionary
+                    name: name of the file to be added
+    @return: add an entry to the name_id dictionary.
+    This function is called when a file is uploaded, or copied into Google Drive
+    '''
     if not (name in name_id):
         name_id[name]=[fileID]
     else:
         name_id[name].append(fileID)
         
 def upload(service,file_path,folder_id,file_name):
+    '''
+    @param: service
+                    file_path: the local path to the file to be uploaded (Ex: '/Users/UserName/Desktop/upload.png')
+                    folde_id: the id of the folder that will contain the uploaded file
+                    file_name: the name of the file to be uploaded, or copied into Google Drive (ex: uploaded.png)
+    @return: None. upload a file into Google Drive
+    '''
     media_body=MediaFileUpload(file_path,resumable=True)
     body={"title":file_name,
           "parents":[{"id":folder_id}]}
@@ -196,6 +248,13 @@ def upload(service,file_path,folder_id,file_name):
         return None
 
 def copy(service,original_file_id,parent_id,copy_title):
+    '''
+    @param: service
+                    original_file_id: id of file to be copied
+                     parent_id: id of the folder that contains the newly-copied file. 
+                    copy_title: the name of the newly_copied file(ex: uploaded.png)
+    @return: None. copy a file into another folder in Google Drive
+    '''
     body={"title": copy_title,
                  "parents":[{"id":parent_id}]}
     try:
@@ -211,12 +270,25 @@ def copy(service,original_file_id,parent_id,copy_title):
         return None
     
 def delete_id_name_parents(file_id):
+    '''
+    @param: id of the file to be deleted
+    @return: delete an entry from id_name_parents dictionary
+    '''
     del(id_name_parents[file_id])
 
 def delete_name_id(name):
+    '''
+    @param: name of the file to be deleted
+    @return: delete an entry from name_id dictionary
+    '''
     del(name_id[name])
     
 def delete(service,delete_id):
+    '''
+    @param: service
+    delete_id: file id of the file to be deleted
+    @return: delete a file from Google Drive
+    '''
     try:
         delete_o=service.files().get(fileId=delete_id).execute()
         children_id=[]
@@ -241,6 +313,11 @@ def delete(service,delete_id):
         print ("An error occurred: %s"%error)
 
 def list_share(service,file_id):
+    '''
+    @param: service
+    delete_id: file id of the file whose info about shares will be listed
+    @return: list the name, role and email address of people who have access to the file
+    '''
     try:
         permissions=service.permissions().list(fileId=file_id).execute()
         if permissions==None:
@@ -258,6 +335,15 @@ def list_share(service,file_id):
 
 
 def insert_share_notif(service,file_id,message,role,per_type,value):
+    '''
+    @param: service
+    file_id: id of the file to be shared
+    message: (string) content of invitation email
+    role: (string) one of four options: owner, reader, writer, commenter.
+    per_type: (string) can be one of the following: user, group, domain, anyone
+    value: name defined in Google drive account or email address of the person to share the file with
+    @return: share a file with an invitation email
+    '''
     insert_body={'value':value,'type':per_type,'role':role}
     try: 
         permission=service.permissions().insert(fileId=file_id,body=insert_body,
@@ -269,6 +355,14 @@ def insert_share_notif(service,file_id,message,role,per_type,value):
     return None
 
 def insert_share(service,file_id,role,per_type,value):
+    '''
+    @param: service
+    file_id: id of the file to be shared
+    role: (string) one of four options: owner, reader, writer, commenter.
+    per_type: (string) can be one of the following: user, group, domain, anyone
+    value: name defined in Google drive account or email address of the person to share the file with
+    @return: share a file without an invitation email
+    '''
     insert_body={'value':value,
                  'type':per_type,
                  'role':role}
@@ -282,6 +376,15 @@ def insert_share(service,file_id,role,per_type,value):
     
 
 def process_list(service,command,commands):
+    '''
+    @param:
+    service
+    command: the original user command starting with "ls" or "list"
+    commands: the processed list that represent the command
+    (return value of process_command_into_list function)
+    @return:
+    check flags, find folder ID and call the list_files function if the command is verified as valid
+    '''
     if len(commands)>3:
         print ("Invalid command: "+command)
         print ("Please make sure to follow the calling protocol")
@@ -324,6 +427,20 @@ def process_list(service,command,commands):
                 return
 
 def process_upload(service,command,commands):
+    '''
+    @param:
+    service
+    command: the original user command starting with "upload" 
+    commands: the processed list that represent the command
+    (return value of process_command_into_list function)
+    @return:
+    check flags, identify different parameters to be passed into upload funciton
+    and call the upload function if the command is verified as valid
+    @valid_command_format:
+    1, upload -n 'file_name' 'local_path' 'drive_path'
+    2, upload 'local_path'
+    3, upload 'local_path' 'drive_path'
+    '''
     length=len(commands)
     if not (length==2 or length==3 or length==5):
         print ("Invalid command: "+command)
@@ -376,6 +493,21 @@ def process_upload(service,command,commands):
         return
 
 def process_download(service,command,ls):
+    '''
+    @param:
+    service
+    command: the original user command starting with "download" 
+    commands: the processed list that represent the command
+    (return value of process_command_into_list function)
+    @return:
+    check flags, identify different parameters to be passed into download funciton
+    and call the download function if the command is verified as valid
+    @valid_command_format:
+    1, download -n 'file_name' 'drive_path' 'local_path'
+    2, download 'drive_path'
+    3, download -n 'file_name' 'drive_path'
+    4, download 'drive_path' 'local_path'
+    '''
     length=len(ls)
     if not (length==3 or length==2 or length==5 or length==4):
         print ("Invalid command: "+command)
@@ -424,6 +556,20 @@ def process_download(service,command,ls):
     return
 
 def process_copy(service,command,ls):
+    '''
+    @param:
+    service
+    command: the original user command starting with "copy" 
+    commands: the processed list that represent the command
+    (return value of process_command_into_list function)
+    @return:
+    check flags, identify different parameters to be passed into copy funciton
+    and call the copy function if the command is verified as valid
+    @valid_command_format:
+    1, copy -n 'file_name' 'original_file_path' 'copy_file_path'
+    2, download 'original_file_path' 'copy_file_path'
+    3, download 'original_file_path' 
+    '''
     length=len(ls)
     if not (length==2 or length==5 or length==3):
         print ("Invalid command: "+ command)
@@ -479,6 +625,18 @@ def process_copy(service,command,ls):
 
 
 def process_delete(service,command,ls):
+    '''
+    @param:
+    service
+    command: the original user command starting with "delete" 
+    commands: the processed list that represent the command
+    (return value of process_command_into_list function)
+    @return:
+    check flags, identify different parameters to be passed into copy funciton
+    and call the delete function if the command is verified as valid
+    @valid_command_format:
+    1, copy 'file_path'
+    '''
     if len(ls)!=2:
         print ("Invalid command: "+command)
         print ("Please make sure you follow the command protocol")
@@ -491,14 +649,48 @@ def process_delete(service,command,ls):
     delete(service,file_id)
 
 def process_share(service,command,ls):
+    '''
+    @param:
+    service
+    command: the original user command starting with "share" 
+    commands: the processed list that represent the command
+    (return value of process_command_into_list function)
+    @return:
+    check flags, identify different parameters to be passed into different share funcitons
+    and call the share functions if the command is verified as valid
+    @valid_command_format:
+    1, full fomat: share -m 'email message' -r 'role' -e 'emailAddresses separated by spaces'
+    -g 'groupEmailAddresses separated by spaces'
+    -d 'domainEmailAddresses separated by spaces'
+    'file_path' 
+    2, command without '-m' flag: No invitation emails will be sent
+    3, specify at least one email address/group email address or a domain, i.e. the command
+    need to contain at least one of the flag '-e','-g','-d' followed by some contact info (email addresses)
+    4, if no email address is provided, the file would be shared with anyone. Type= 'anyone'
+    5, '-r' flad define roles of the person to share the file with, can be reader, writer, commenter,
+    or even owner. Default role: reader
+    6, 'file_path' is mandatory. It specifies the file to be shared
+    '''
     if len(ls)<=1:
         print ("Invalid command: "+ command)
         print("Please make sure that you followed the command protocol")
-        print ("To share file: share -m 'email message' -t 'r/w/c' -e 'emailAddress1 emailAddress2 emailAddress3' -g 'groupEmailAddress' -d 'domainEmailAddess' 'file_path'")
+        print ("To share file: share -m 'email message' -r 'r/w/c/o' -e 'emailAddress1 emailAddress2 emailAddress3' -g 'groupEmailAddress' -d 'domainEmailAddess' 'file_path'")
         print ("You must have a file path, other parts can be skipped")
         print ("Please type \"share -h\" or \"share -help\" to better understand the function\"")
         return
-
+    if len(ls)==2 and (ls[1]=='-h' or ls[1]=='-help'):
+        print ("To share files with people, the command should follow these rules: ")
+        print ("   1, full fomat: share -m 'email message' -r 'role' -e 'emailAddresses separated by spaces'")
+        print ("   -g 'groupEmailAddresses separated by spaces'")
+        print ("   -d 'domainEmailAddresses separated by spaces'")
+        print ("    'file_path' ")
+        print ("   2, command without '-m' flag: No invitation emails will be sent")
+        print ("    3, specify at least one email address/group email address or a domain, i.e. the command")
+        print ("    need to contain at least one of the flag '-e','-g','-d' followed by some contact info (email addresses)")
+        print ("    4, if no email address is provided, the file would be shared with anyone. Type= 'anyone'")
+        print ("    5, '-r' flad define roles of the person to share the file with, can be reader, writer, commenter,")
+        print ("   6, 'file_path' is mandatory. It specifies the file to be shared")
+        return
     #file_id
     file_path=ls[-1]
     file_id=findID(file_path)
@@ -521,13 +713,13 @@ def process_share(service,command,ls):
     r_index=[i for i, t in enumerate(ls) if t=="-r"]
     if len (r_index)>=2:
         print ("Invalid command: "+command)
-        print ("Each share permission can have only one role: r(reader), w(writer), c(commenter)")
+        print ("Each share permission can have only one role: o(owner), r(reader), w(writer), c(commenter)")
         return
     if len(r_index)==0:
         role="reader"
     else:
         role=ls[r_index[0]+1]
-        assert role in ['r','reader','w','writer','c','commenter']
+        assert role in ['o','owner','r','reader','w','writer','c','commenter']
 
     #type
     no_type=True
@@ -593,6 +785,13 @@ def process_share(service,command,ls):
 
 
 def process_command_into_list(command):
+    '''
+    @param: user's command
+    @return: a list of different components of user's command
+    Ex: "ls -r 'folder_path'"--> ['ls', '-r', 'folder_path']
+            "copy -n 'file_name' 'original_file_path'       'copy_file_path'"
+            -->['copy','-n','file_name','original_file_path','copy_file_path']
+    '''
     result=[]
     last_index=len(command)-1
     start_quote=False
@@ -623,7 +822,12 @@ def process_command_into_list(command):
             i+=1
     return result
         
-def process_command(service, command):#process one single command
+def process_command(service, command):
+    '''
+    @param: service
+                    command: user's command
+    @return: process user's command and decide which function to call to execute user's command
+    '''
     ls=process_command_into_list(command)
     if ls[0]=='ls' or ls[0]=='list':
         process_list(service,command,ls)
@@ -642,16 +846,32 @@ def process_command(service, command):#process one single command
         return
     if ls[0]=="share":
         process_share(service,command,ls)
+    if ls[0]=="quit" or ls[0]=="q":
+        print ("Quitting DriveShell ....")
+        os._exit(0)
     else:
         print ("Invalid command: "+command)
         print("supported commands: ls, upload, download, copy, delete")
         return
-    
+
+def process_multiple_commands(command):
+    '''
+    Users can sequentially multiple commands in one singe command using '|' as delimiter
+    This function simply return a list of such commands 
+    '''
+    return command.split("|")
+
 def print_id_name_parents():
+    '''
+    print the id_name_parents dictionary for testing purposes
+    '''
     for thing in id_name_parents:
         print(id_name_parents[thing].getName()+"  "+ thing)
 
 def print_name_id():
+    '''
+    print the name_id dictionary for testing purposes
+    '''
     for thing in name_id:
         print (thing+ "   "+str(name_id[thing]))
 
@@ -660,119 +880,10 @@ def main():
     http=credentials.authorize(httplib2.Http())
     service=discovery.build('drive','v2',http=http)
     initialize_dictionaries(service)
-##    fileID1=findID("My Drive")
-    #print (fileID1)
-##    for thing in id_name_parents:
-##        print (thing+ "     "+ id_name_parents[thing].to_string())
-##    
-
- #   fileID2=findID("My Drive/Folder1/file3")
- #   fileID3=findID("Folder1/folder2")
-    
-##    list_file(service,fileID2)
-##    print("")
-##    list_file(service,fileID3)
-##    print("")
-##    list_file_recursive(service,fileID2)
-##    print("")
- #   list_file_recursive(service,fileID1,0)
- #   list_file_recursive(service,fileID1,0)
- #   download(service, "download.png","0Bx2aTklRTnmicmM3bndOVjZ0RnM","/Users/VuThaiHa/Downloads")
- #   upload(service,"/Users/VuThaiHa/Downloads/animBanner.py","root",'upload.py')
- #   copy(service,"0Bx2aTklRTnmicmM3bndOVjZ0RnM","root","copy.png")
- #   list_file_recursive(service,"root",0)
- #   delete(service,"0Bx2aTklRTnmiOE5YYVpuTmNpRXM")
- #   list_file_recursive(service,"root",0)
-##    command1="ls -s"
-##    list1=process_command_into_list(command1)
-##    command2="ls -r 'My Drive/Folder1'"
-##    list2=process_command_into_list(command2)
-##    command3= "ls 'My Drive'"
-##    list3=process_command_into_list(command3)
-##    command4="ls 'Folder1/folder2'"
-##    list4=process_command_into_list(command4)
-##    print("Test1: ")
-##    process_list(service,command1,list1)
-##    print("Test2: ")
-##    process_list(service,command2,list2)
-##    print("Test3: ")
-##    process_list(service,command3,list3)
-##    print("Test4: ")
-##    process_list(service,command4,list4)
-##
-##    command1="upload -n 'upload.png' 'Desktop/upload.png' 'My Drive/Folder1'"
-##    print ("Test1:")
-##    ls1=process_command_into_list(command1)
-##    print (ls1)
-##    process_upload(service,command1,ls1)
-##    print ("Test2: ")
-##    command2="upload -t 'hello.py' 'Desktop/VuThaiHa' 'My Drive/Folder2'"
-##    ls2=process_command_into_list(command2)
-##    print (ls2)
-##    process_upload(service,command2,ls2)
-##    print("Test3: ")
-##    cm3="upload 'Desktop/upload.png' 'My Drive/Folder1/folder2'"
-##    ls3=process_command_into_list(cm3)
-##    print (ls3)
-##    process_upload(service,cm3,ls3)
-##    print("Test4: ")
-##    cm4="upload -n 'shouldfail.py' 'Downloads/AnhVien..png' 'My Drive/File1'"
-##    ls4=process_command_into_list(cm4)
-##    print (ls4)
-##    process_upload(service,cm4,ls4)
-##    print (findID("My Drive/Folder1/upload.png"))
-##    print (findID("My Drive/Folder1/folder2/upload.png"))
-##    cm1="ls -r 'My Drive/Folder1'"
-##    print (process_command_into_list(cm1))
-##    cm2="download -n 'download.py' 'My Drive/Folder1/folder2' 'Downloads'"
-##    print (process_command_into_list(cm2))
-
-##    cm1="download -n 'download.doc' 'My Drive/File1' "
-##    ls1=process_command_into_list(cm1)
-##    print("Test1: file download.png in Downloads")
-##    process_download(service,cm1,ls1)
-##    cm2="download 'My Drive/upload.png'"
-##    ls2=process_command_into_list(cm2)
-##    print ("Test2: file upload.png in Downloads")
-##    process_download(service,cm2,ls2)
-##    cm3="download 'My Drive/Folder1/folder2/file3.png' 'Desktop'"
-##    ls3=process_command_into_list(cm3)
-##    print("Test3: file file3.png in Desktop")
-##    process_download(service,cm3,ls3)
-##    cm4="download -n 'hello.py' 'My Drive/Folder1' 'Downloads'"
-##    ls4=process_command_into_list(cm4)
-##    print ("Test4: Error")
-##    process_download(service,cm4,ls4)
-##
-##    cm1="copy -n 'upload.png' 'My Drive/upload.png' 'My Drive'"
-##    ls1=process_command_into_list(cm1)
-##    print ("Test1: Should be an error due to file name")
-##    process_copy(service,cm1,ls1)
-##    cm2="copy 'My Drive/Folder1' 'My Drive/Folder1/folder2'"
-##    ls2=process_command_into_list(cm2)
-##    print ("Test2: Should be an error due to original file name")
-##    process_copy(service,cm2,ls2)
-##    cm3="copy 'My Drive/upload.png'"
-##    ls3=process_command_into_list(cm3)
-##    print ("Test3: Should be ok")
-##    process_copy(service,cm3,ls3)
-##    cm4="copy 'My Drive/Folder1/file2/file3.png' 'My Drive'"
-##    ls4=process_command_into_list(cm4)
-##    print ("Test4: ok")
-##    process_copy(service,cm4,ls4)
-##    print_id_name_parents()
-##    print ()
-##    print_name_id()
-##    cm1="delete 'My Drive/Folder1/deleteFolder'"
-##    process_delete(service,cm1,process_command_into_list(cm1))
-##    print_id_name_parents()
-##    print()
-##    print_name_id()
- #   cm2="delete 'My Drive/upload.png'"
- #   process_delete(service,cm2,process_command_into_list(cm2))
-    list_file_recursive(service,"root",0)
-##    cm="upload 'Desktop/summerOnTheCuyahogaProfile.rtf' 'My Drive'"
-##    process_command(service, cm)
-    cm="share -m 'share file' -e 'hvu@colgate.edu' 'My Drive/upload.png'"
-    process_command(service,cm)
+    while True:
+        commands=raw_input("prompt>>>  ")
+        commands=process_multiple_commands(commands)
+        for command in commands:
+            process_command(service,command)
+        
 main()
